@@ -1,0 +1,6 @@
+discord.py
+aiosqlite
+python-dotenv
+aiohttp
+aiofiles
+pytz
