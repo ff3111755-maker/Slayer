@@ -28,6 +28,9 @@ async def init_db():
         )
         """)
         await db.execute("""
+    ALTER TABLE users ADD COLUMN last_weekly TEXT
+    """)
+        await db.execute("""
         CREATE TABLE IF NOT EXISTS rewards (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
@@ -136,7 +139,34 @@ async def on_member_join(member):
 async def balance(ctx):
     bal, _ = await get_user(ctx.author.id)
     await ctx.send(f"💰 **{ctx.author.name}** has `{bal}` chips")
+@bot.command()
+async def weekly(ctx):
+    bal, _, last_weekly = await get_user(ctx.author.id)
+    now = datetime.utcnow()
 
+    if last_weekly:
+        last_weekly_time = datetime.fromisoformat(last_weekly)
+        if now - last_weekly_time < timedelta(days=7):
+            remaining = timedelta(days=7) - (now - last_weekly_time)
+            days = remaining.days
+            hrs, rem = divmod(remaining.seconds, 3600)
+            mins, secs = divmod(rem, 60)
+            return await ctx.send(
+                f"⏳ You already claimed your weekly reward! Try again in {days}d {hrs}h {mins}m"
+            )
+
+    reward_amount = 10000  # You can adjust this
+
+    bal += reward_amount
+
+    async with aiosqlite.connect(DB) as db:
+        await db.execute(
+            "UPDATE users SET balance=?, last_weekly=? WHERE user_id=?",
+            (bal, now.isoformat(), ctx.author.id)
+        )
+        await db.commit()
+
+    await ctx.send(f"🎁 You received your weekly reward: **{reward_amount} chips**!")
 @bot.command()
 async def daily(ctx):
     bal, last = await get_user(ctx.author.id)
@@ -170,14 +200,14 @@ async def leaderboard(ctx):
 # ================= GAMES =================
 @bot.command()
 async def spin(ctx):
-    COST = 5000
+    COST = 2500
 
     if not await casino_allowed(ctx):
         return
 
     bal, _ = await get_user(ctx.author.id)
     if bal < COST:
-        return await ctx.send("❌ You need **5000 chips** to spin")
+        return await ctx.send("❌ You need **2500 chips** to spin")
 
     async with aiosqlite.connect(DB) as db:
         cur = await db.execute("SELECT name, chance FROM rewards")
