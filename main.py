@@ -76,18 +76,34 @@ async def update_balance(uid, bal):
         await db.commit()
 
 async def casino_allowed(ctx):
+    # admins can bypass channel restriction
+    if ctx.author.guild_permissions.administrator:
+        return True
+
     async with aiosqlite.connect(DB) as db:
-        cur = await db.execute("SELECT casino_enabled, channel_id FROM settings WHERE guild_id=?", (ctx.guild.id,))
+        cur = await db.execute(
+            "SELECT casino_enabled, channel_id FROM settings WHERE guild_id=?",
+            (ctx.guild.id,)
+        )
         row = await cur.fetchone()
+
         if not row:
-            await db.execute("INSERT INTO settings (guild_id) VALUES (?)", (ctx.guild.id,))
-            await db.commit()
-            return True
-        enabled, channel = row
+            return False  # no channel set yet
+
+        enabled, channel_id = row
+
         if not enabled:
             return False
-        if channel and ctx.channel.id != channel:
+
+        if channel_id is None:
             return False
+
+        if ctx.channel.id != channel_id:
+            await ctx.send(
+                f"❌ Casino commands only work in <#{channel_id}>"
+            )
+            return False
+
         return True
 
 # ================= READY & INVITES =================
