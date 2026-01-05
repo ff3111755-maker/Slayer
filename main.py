@@ -155,7 +155,7 @@ async def weekly(ctx):
                 f"⏳ You already claimed your weekly reward! Try again in {days}d {hrs}h {mins}m"
             )
 
-    reward_amount = 10000  # You can adjust this
+    reward_amount = 1000  # You can adjust this
 
     bal += reward_amount
 
