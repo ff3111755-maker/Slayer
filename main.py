@@ -8,7 +8,7 @@ from discord.ui import View, Button
 from datetime import datetime, timedelta
 
 TOKEN = os.getenv("DISCORD_TOKEN")
-PREFIX = "!"
+PREFIX = "."
 DB = "casino.db"
 
 intents = discord.Intents.all()
