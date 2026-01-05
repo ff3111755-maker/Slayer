@@ -230,6 +230,36 @@ async def blackjack(ctx, bet: int):
 # ================= ADMIN =================
 @bot.command()
 @admin()
+async def addchips(ctx, member: discord.Member, amount: int):
+    if amount <= 0:
+        return await ctx.send("❌ Amount must be positive")
+
+    bal, _ = await get_user(member.id)
+    bal += amount
+    await update_balance(member.id, bal)
+
+    await ctx.send(
+        f"✅ Added **{amount} chips** to {member.mention}\n"
+        f"💰 New balance: `{bal}`"
+    )
+
+
+@bot.command()
+@admin()
+async def removechips(ctx, member: discord.Member, amount: int):
+    if amount <= 0:
+        return await ctx.send("❌ Amount must be positive")
+
+    bal, _ = await get_user(member.id)
+    bal = max(0, bal - amount)
+    await update_balance(member.id, bal)
+
+    await ctx.send(
+        f"❌ Removed **{amount} chips** from {member.mention}\n"
+        f"💰 New balance: `{bal}`"
+    )
+@bot.command()
+@admin()
 async def wipe(ctx):
     async with aiosqlite.connect(DB) as db:
         await db.execute("DELETE FROM users")
