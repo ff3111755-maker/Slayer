@@ -170,15 +170,26 @@ class BlackjackView(View):
         super().__init__(timeout=30)
         self.ctx = ctx
         self.bet = bet
+        self.author_id = ctx.author.id
         self.player = [random.randint(1, 11), random.randint(1, 11)]
         self.dealer = [random.randint(1, 11), random.randint(1, 11)]
+
+    async def interaction_check(self, interaction: discord.Interaction):
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message(
+                "❌ This is **not your Blackjack game**.",
+                ephemeral=True
+            )
+            return False
+        return True
 
     def total(self, hand):
         return sum(hand)
 
     async def end(self, interaction):
-        bal, _ = await get_user(self.ctx.author.id)
+        bal, _ = await get_user(self.author_id)
         p, d = self.total(self.player), self.total(self.dealer)
+
         while d < 17:
             self.dealer.append(random.randint(1, 11))
             d = self.total(self.dealer)
@@ -195,9 +206,15 @@ class BlackjackView(View):
         else:
             result = "➖ PUSH"
 
-        await update_balance(self.ctx.author.id, bal)
+        await update_balance(self.author_id, bal)
+
         await interaction.response.edit_message(
-            content=f"🃏 **BLACKJACK**\nYour: {self.player} ({p})\nDealer: {self.dealer} ({d})\n{result}\n💰 `{bal}` chips",
+            content=(
+                f"🃏 **BLACKJACK**\n"
+                f"Your hand: {self.player} ({p})\n"
+                f"Dealer hand: {self.dealer} ({d})\n"
+                f"{result}\n💰 `{bal}` chips"
+            ),
             view=None
         )
 
@@ -215,6 +232,7 @@ class BlackjackView(View):
     @discord.ui.button(label="Stand ✋", style=discord.ButtonStyle.red)
     async def stand(self, interaction: discord.Interaction, button: Button):
         await self.end(interaction)
+
 
 @bot.command()
 async def blackjack(ctx, bet: int):
