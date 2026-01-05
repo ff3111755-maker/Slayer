@@ -28,6 +28,13 @@ async def init_db():
         )
         """)
         await db.execute("""
+        CREATE TABLE IF NOT EXISTS rewards (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            chance REAL
+        )
+        """)
+        await db.execute("""
         CREATE TABLE IF NOT EXISTS settings (
             guild_id INTEGER PRIMARY KEY,
             casino_enabled INTEGER DEFAULT 1,
@@ -146,6 +153,61 @@ async def leaderboard(ctx):
 
 # ================= GAMES =================
 @bot.command()
+async def spin(ctx):
+    COST = 5000
+
+    if not await casino_allowed(ctx):
+        return
+
+    bal, _ = await get_user(ctx.author.id)
+    if bal < COST:
+        return await ctx.send("❌ You need **5000 chips** to spin")
+
+    async with aiosqlite.connect(DB) as db:
+        cur = await db.execute("SELECT name, chance FROM rewards")
+        rewards = await cur.fetchall()
+
+    if not rewards:
+        return await ctx.send("❌ No rewards configured")
+
+    # take spin cost
+    bal -= COST
+    await update_balance(ctx.author.id, bal)
+
+    await ctx.send("🎡 **Spinning...**")
+    await asyncio.sleep(2)
+
+    roll = random.uniform(0, 100)
+    current = 0
+    reward = "Nothing"
+
+    for name, chance in rewards:
+        current += chance
+        if roll <= current:
+            reward = name
+            break
+
+    # payout logic
+    if reward.isdigit():
+        bal += int(reward)
+        msg = f"💰 You won `{reward}` chips!"
+    elif reward.lower() == "jackpot":
+        bal += 25000
+        msg = "💎 **JACKPOT! +25,000 chips**"
+    elif reward.lower() == "lose":
+        msg = "💀 You won nothing"
+    else:
+        msg = f"🎁 You won **{reward}**"
+
+    await update_balance(ctx.author.id, bal)
+
+    await ctx.send(
+        f"🎡 **SPIN RESULT**\n"
+        f"➡️ **{reward}**\n"
+        f"{msg}\n"
+        f"💰 `{bal}` chips"
+    )
+@bot.command()
 async def coinflip(ctx, choice: str, bet: int):
     if not anti_spam(ctx.author.id): return
     if not await casino_allowed(ctx): return
@@ -246,6 +308,64 @@ async def blackjack(ctx, bet: int):
     )
 
 # ================= ADMIN =================
+@bot.group()
+@admin()
+async def reward(ctx):
+    if ctx.invoked_subcommand is None:
+        await ctx.send(
+            "**Reward Commands**\n"
+            "`.reward add <name> <chance>`\n"
+            "`.reward remove <id>`\n"
+            "`.reward list`"
+        )
+
+
+@reward.command(name="add")
+async def reward_add(ctx, name: str, chance: float):
+    if chance <= 0 or chance > 100:
+        return await ctx.send("❌ Chance must be between 0–100")
+
+    async with aiosqlite.connect(DB) as db:
+        cur = await db.execute("SELECT SUM(chance) FROM rewards")
+        total = (await cur.fetchone())[0] or 0
+
+        if total + chance > 100:
+            return await ctx.send(
+                f"❌ Total chance exceeds 100% (current {total}%)"
+            )
+
+        await db.execute(
+            "INSERT INTO rewards (name, chance) VALUES (?, ?)",
+            (name, chance)
+        )
+        await db.commit()
+
+    await ctx.send(f"✅ Reward **{name}** added ({chance}%)")
+
+
+@reward.command(name="remove")
+async def reward_remove(ctx, reward_id: int):
+    async with aiosqlite.connect(DB) as db:
+        await db.execute("DELETE FROM rewards WHERE id=?", (reward_id,))
+        await db.commit()
+
+    await ctx.send(f"🗑️ Reward `{reward_id}` removed")
+
+
+@reward.command(name="list")
+async def reward_list(ctx):
+    async with aiosqlite.connect(DB) as db:
+        cur = await db.execute("SELECT id, name, chance FROM rewards")
+        rows = await cur.fetchall()
+
+    if not rows:
+        return await ctx.send("❌ No rewards set")
+
+    text = "🎁 **SPIN REWARDS**\n\n"
+    for r_id, name, chance in rows:
+        text += f"`{r_id}` • **{name}** — `{chance}%`\n"
+
+    await ctx.send(text)
 @bot.command()
 @admin()
 async def addchips(ctx, member: discord.Member, amount: int):
