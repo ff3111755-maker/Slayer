@@ -275,7 +275,7 @@ async def coinflip(ctx, choice: str, bet: int):
 # ================= BLACKJACK WITH BUTTONS =================
 class BlackjackView(View):
     def __init__(self, ctx, bet):
-        super().__init__(timeout=30)
+        super().__init__(timeout=None)
         self.ctx = ctx
         self.bet = bet
         self.author_id = ctx.author.id
